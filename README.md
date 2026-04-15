@@ -146,6 +146,8 @@ Each area is serialized as:
 
 ## Demo
 
+> **Note:** Because this project uses ES modules (`<script type="module">`), you cannot run the demo by directly opening `index.html` in your browser (via the `file://` protocol) due to CORS restrictions. Please use a local web server (e.g., VS Code Live Server, `npx serve`, or `python -m http.server`) to view it.
+
 Open `index.html` in a browser to try the editor. To use your own API key:
 
 1. Copy `config.example.js` to `config.local.js`

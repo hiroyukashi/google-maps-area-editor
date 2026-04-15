@@ -26,10 +26,40 @@ export class AreaType {
     get color() { return this.#color; }
 }
 
-const CustomSymbolPath = {
+const SVG_PATH = {
     CIRCLE: "M0,-5 a5,5 0 1,0 0,10 a5,5 0 1,0 0,-10",
-    DOUBLE_CIRCLE: "M0,-5 a5,5 0 1,0 0,10 a5,5 0 1,0 0,-10 M0,-2.5 a2.5,2.5 0 1,0 0,5 a2.5,2.5 0 1,0 0,-5"
+    DOUBLE_CIRCLE: "M0,-5 a5,5 0 1,0 0,10 a5,5 0 1,0 0,-10 M0,-2.5 a2.5,2.5 0 1,0 0,5 a2.5,2.5 0 1,0 0,-5",
 };
+
+function createMarkerSvg(path, scale) {
+    // Match original google.maps.Marker Symbol rendering:
+    // path coordinates scaled by `scale`, stroke always 1px
+    const size = Math.ceil((5 * scale + 1) * 2);
+    const half = size / 2;
+    const svg = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svg.setAttribute("width", size);
+    svg.setAttribute("height", size);
+    svg.setAttribute("viewBox", `${-half} ${-half} ${size} ${size}`);
+    svg.style.display = "block";
+    svg.style.transform = "translateY(50%)";
+    const pathEl = document.createElementNS("http://www.w3.org/2000/svg", "path");
+    pathEl.setAttribute("d", path);
+    pathEl.setAttribute("fill", "#ffffff");
+    pathEl.setAttribute("stroke", "#000000");
+    pathEl.setAttribute("stroke-width", "1");
+    pathEl.setAttribute("vector-effect", "non-scaling-stroke");
+    if (scale !== 1) pathEl.setAttribute("transform", `scale(${scale})`);
+    svg.appendChild(pathEl);
+    return svg;
+}
+
+function createDraggableContent(size) {
+    const div = document.createElement("div");
+    div.style.width = `${size}px`;
+    div.style.height = `${size}px`;
+    div.style.transform = "translateY(50%)";
+    return div;
+}
 
 export class AreaEditor {
     #map;
@@ -520,33 +550,23 @@ class AreaAnchor {
         this.#map = map;
         this.#timesN = timesN;
         this.#timesE = timesE;
-        const options = {
-            icon: {
-                path: CustomSymbolPath.CIRCLE,
-                fillColor: "#ffffff",
-                fillOpacity: 1.0,
-                scale: 1.0,
-                strokeColor: "#000000",
-                strokeOpacity: 1.0,
-                strokeWeight: 1.0,
-            },
+
+        this.#marker = new google.maps.marker.AdvancedMarkerElement({
             map: this.#map,
-            clickable: false,
-            draggable: false,
-            crossOnDrag: false,
+            content: createMarkerSvg(SVG_PATH.CIRCLE, 1.0),
+            gmpClickable: false,
             zIndex: 200,
-        };
-        this.#marker = new google.maps.Marker(options);
+        });
 
         const createDraggable = () => {
-            const marker = new google.maps.Marker(options);
-            const listeners = [];
-            marker.setOptions({
-                opacity: 0,
-                clickable: true,
-                draggable: true,
+            const marker = new google.maps.marker.AdvancedMarkerElement({
+                map: this.#map,
+                content: createDraggableContent(12),
+                gmpDraggable: true,
                 zIndex: 201,
             });
+            marker.style.opacity = "0";
+            const listeners = [];
             listeners.push(marker.addListener("dragstart", () => {
                 this.#dragging = this.#draggable;
                 this.#draggable = createDraggable();
@@ -554,7 +574,7 @@ class AreaAnchor {
             listeners.push(marker.addListener("drag", event => doResize(event)));
             listeners.push(marker.addListener("dragend", event => {
                 listeners.forEach(l => google.maps.event.removeListener(l));
-                this.#dragging.setMap(null);
+                this.#dragging.map = null;
                 this.#dragging = null;
                 doResize(event);
             }));
@@ -581,10 +601,10 @@ class AreaAnchor {
         const ve = new Vector2(0, distE * this.#timesE).rot(angle);
         const v = vn.add(ve);
         const position = computeOffset(center, v.magnitude, v.angle);
-        this.#marker.setPosition(position);
-        this.#marker.setVisible(editable);
-        this.#draggable.setPosition(position);
-        this.#draggable.setVisible(editable);
+        this.#marker.position = position;
+        this.#marker.map = editable ? this.#map : null;
+        this.#draggable.position = position;
+        this.#draggable.map = editable ? this.#map : null;
         if (!this.#dragging) {
             this.#origin = computeOffset(center, v.magnitude, v.angle + Math.PI);
             this.#vectorN = vn.times(Math.sign(distN)).normalized;
@@ -594,9 +614,9 @@ class AreaAnchor {
 
     destroy() {
         // TODO: Ideally should also remove event listeners from draggable markers
-        this.#marker?.setMap(null);
-        this.#draggable?.setMap(null);
-        this.#dragging?.setMap(null);
+        if (this.#marker) this.#marker.map = null;
+        if (this.#draggable) this.#draggable.map = null;
+        if (this.#dragging) this.#dragging.map = null;
     }
 }
 
@@ -622,33 +642,22 @@ class AreaRotator {
             zIndex: 190,
         });
 
-        const options = {
-            icon: {
-                path: CustomSymbolPath.DOUBLE_CIRCLE,
-                fillColor: "#ffffff",
-                fillOpacity: 1.0,
-                scale: 2.0,
-                strokeColor: "#000000",
-                strokeOpacity: 1.0,
-                strokeWeight: 1.0,
-            },
+        this.#marker = new google.maps.marker.AdvancedMarkerElement({
             map: this.#map,
-            clickable: false,
-            draggable: false,
-            crossOnDrag: false,
+            content: createMarkerSvg(SVG_PATH.DOUBLE_CIRCLE, 2.0),
+            gmpClickable: false,
             zIndex: 200,
-        };
-        this.#marker = new google.maps.Marker(options);
+        });
 
         const createDraggable = () => {
-            const marker = new google.maps.Marker(options);
-            const listeners = [];
-            marker.setOptions({
-                opacity: 0,
-                clickable: true,
-                draggable: true,
+            const marker = new google.maps.marker.AdvancedMarkerElement({
+                map: this.#map,
+                content: createDraggableContent(22),
+                gmpDraggable: true,
                 zIndex: 201,
             });
+            marker.style.opacity = "0";
+            const listeners = [];
             listeners.push(marker.addListener("dragstart", () => {
                 this.#dragging = this.#draggable;
                 this.#draggable = createDraggable();
@@ -656,7 +665,7 @@ class AreaRotator {
             listeners.push(marker.addListener("drag", event => doRotate(event)));
             listeners.push(marker.addListener("dragend", event => {
                 listeners.forEach(l => google.maps.event.removeListener(l));
-                this.#dragging.setMap(null);
+                this.#dragging.map = null;
                 this.#dragging = null;
                 doRotate(event);
             }));
@@ -682,10 +691,10 @@ class AreaRotator {
         const position = computeOffset(positionN, 5000000 * Math.sign(distN) / scale, angle);
         this.#line.setPath([positionN, position]);
         this.#line.setVisible(editable);
-        this.#marker.setPosition(position);
-        this.#marker.setVisible(editable);
-        this.#draggable.setPosition(position);
-        this.#draggable.setVisible(editable);
+        this.#marker.position = position;
+        this.#marker.map = editable ? this.#map : null;
+        this.#draggable.position = position;
+        this.#draggable.map = editable ? this.#map : null;
         this.#center = center;
         this.#inverse = distN < 0;
     }
@@ -693,8 +702,8 @@ class AreaRotator {
     destroy() {
         // TODO: Ideally should also remove event listeners from draggable markers
         this.#line?.setMap(null);
-        this.#marker?.setMap(null);
-        this.#draggable?.setMap(null);
-        this.#dragging?.setMap(null);
+        if (this.#marker) this.#marker.map = null;
+        if (this.#draggable) this.#draggable.map = null;
+        if (this.#dragging) this.#dragging.map = null;
     }
 }

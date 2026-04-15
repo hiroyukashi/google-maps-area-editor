@@ -13,7 +13,8 @@ Allows users to draw, resize, rotate, and manage rectangular areas on a Google M
 
 ## Requirements
 
-- Google Maps JavaScript API with an API key
+- Google Maps JavaScript API (v3.56+) with an API key
+- The library uses `AdvancedMarkerElement` internally (loaded automatically by `AreaEditor.create()`). The map **must** be initialized with a `mapId`. For testing, you can use `mapId: 'DEMO_MAP_ID'`.
 - The map **must** have `isFractionalZoomEnabled: false` set. The internal pixel-to-coordinate conversion uses `1 << map.getZoom()`, which requires integer zoom levels. Fractional zoom also causes excessive event firing that leads to rendering issues.
 
 ## Usage
@@ -34,6 +35,7 @@ Allows users to draw, resize, rotate, and manage rectangular areas on a Google M
   const map = new Map(document.getElementById("map"), {
     center: { lat: 35.681236, lng: 139.767125 },
     zoom: 18,
+    mapId: 'DEMO_MAP_ID',  // Required for AdvancedMarkerElement
     isFractionalZoomEnabled: false,
   });
 

@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Google Maps Area Editor - Demo</title>
+    <style>
+        body { font-family: 'Helvetica Neue', Arial, sans-serif; margin: 0; padding: 20px; color: #333; }
+        h1 { font-size: 1.5rem; margin-bottom: 20px; }
+
+        .map-container {
+            position: relative;
+            width: 100%;
+            height: 600px;
+            border-radius: 8px;
+            overflow: hidden;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            border: 1px solid #ddd;
+        }
+
+        #map { width: 100%; height: 100%; }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 15px;
+            background: #f8f9fa;
+            padding: 15px;
+            border-radius: 8px;
+            align-items: center;
+        }
+
+        .separator { color: #999; user-select: none; }
+
+        button {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 4px;
+            background-color: #007bff;
+            color: white;
+            cursor: pointer;
+            font-size: 14px;
+            transition: background 0.2s;
+        }
+
+        button:hover { background-color: #0056b3; }
+        button.secondary { background-color: #6c757d; }
+        button.danger { background-color: #dc3545; }
+        button:disabled { background-color: #ccc; cursor: not-allowed; }
+
+        .io-section { margin-top: 20px; }
+        .io-section h3 { margin-bottom: 5px; }
+        textarea {
+            width: 100%;
+            height: 120px;
+            margin-top: 5px;
+            font-family: monospace;
+            padding: 10px;
+            box-sizing: border-box;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        .io-actions { margin-top: 8px; display: flex; gap: 10px; }
+    </style>
+</head>
+<body>
+
+    <h1>Google Maps Area Editor - Demo</h1>
+
+    <div class="controls">
+        <button id="btn-add-usual">Add Usual</button>
+        <button id="btn-add-dangerous">Add Dangerous</button>
+        <button id="btn-cancel" class="secondary">Cancel</button>
+        <span class="separator">|</span>
+        <button id="btn-prev" class="secondary">Prev</button>
+        <button id="btn-next" class="secondary">Next</button>
+        <button id="btn-remove" class="danger">Remove</button>
+    </div>
+
+    <div class="map-container">
+        <div id="map"></div>
+    </div>
+
+    <div class="io-section">
+        <h3>Area Data (JSON)</h3>
+        <textarea id="json-area" placeholder="Export or paste JSON here"></textarea>
+        <div class="io-actions">
+            <button id="btn-export">Export</button>
+            <button id="btn-import" class="secondary">Import</button>
+        </div>
+    </div>
+
+    <script src="config.local.js"></script>
+    <script>
+        (g=>{var h,a,k,p="The Google Maps JavaScript API",c="google",l="importLibrary",q="__ib__",m=document,b=window;b=b[c]||(b[c]={});var d=b.maps||(b.maps={}),r=new Set,e=new URLSearchParams,u=()=>h||(h=new Promise(async(f,n)=>{await (a=m.createElement("script"));e.set("libraries",[...r]+"");for(k in g)e.set(k.replace(/[A-Z]/g,t=>"_"+t[0].toLowerCase()),g[k]);e.set("callback",c+".maps."+q);a.src=`https://maps.${c}apis.com/maps/api/js?`+e;d[q]=f;a.onerror=()=>h=n(Error(p+" could not load."));a.nonce=m.querySelector("script[nonce]")?.nonce||"";m.head.append(a)}));d[l]?console.warn(p+" only loads once. Ignoring:",g):d[l]=(f,...n)=>r.add(f)&&u().then(()=>d[l](f,...n))})({
+            key: window.GOOGLE_MAPS_API_KEY || "YOUR_API_KEY",
+            v: "weekly"
+        });
+    </script>
+
+    <script type="module">
+        import { AreaEditor, AreaType, STATE } from './AreaEditor.js';
+
+        const AREA_TYPES = {
+            usual:     new AreaType("usual", "#00bbdd"),
+            dangerous: new AreaType("dangerous", "#ff0000"),
+        };
+
+        async function init() {
+            const { Map } = await google.maps.importLibrary("maps");
+
+            const map = new Map(document.getElementById("map"), {
+                center: { lat: 35.681236, lng: 139.767125 },
+                zoom: 18,
+                isFractionalZoomEnabled: false,
+            });
+
+            const editor = await AreaEditor.create(map, {
+                types: Object.values(AREA_TYPES),
+            });
+
+            // Button state management
+            const buttons = {
+                add:    [document.getElementById("btn-add-usual"), document.getElementById("btn-add-dangerous")],
+                cancel: [document.getElementById("btn-cancel")],
+                edit:   [document.getElementById("btn-prev"), document.getElementById("btn-next"), document.getElementById("btn-remove")],
+            };
+            const setEnabled = (elems, enabled) => elems.forEach(el => el.disabled = !enabled);
+
+            editor.onStateChange = state => {
+                document.body.className = `page-state-${state}`;
+                const editing = state === STATE.EDITING;
+                const adding = state === STATE.DRAWABLE || state === STATE.DRAWING;
+                setEnabled(buttons.add,    !adding);
+                setEnabled(buttons.cancel, adding);
+                setEnabled(buttons.edit,   editing);
+            };
+            editor.onStateChange(STATE.INITIAL);
+
+            // Drawing buttons
+            document.getElementById("btn-add-usual").onclick = () => {
+                editor.setAreaType(AREA_TYPES.usual);
+            };
+            document.getElementById("btn-add-dangerous").onclick = () => {
+                editor.setAreaType(AREA_TYPES.dangerous);
+            };
+            document.getElementById("btn-cancel").onclick = () => {
+                editor.cancelAdd();
+            };
+
+            // Editing buttons
+            document.getElementById("btn-prev").onclick = () => editor.editPrev();
+            document.getElementById("btn-next").onclick = () => editor.editNext();
+            document.getElementById("btn-remove").onclick = () => editor.removeEditingArea();
+
+            // Import / Export
+            const jsonArea = document.getElementById("json-area");
+
+            document.getElementById("btn-export").onclick = () => {
+                jsonArea.value = editor.exportAreasJSON();
+            };
+
+            document.getElementById("btn-import").onclick = () => {
+                const json = jsonArea.value.trim();
+                if (!json) return;
+                try {
+                    editor.loadAreas(json);
+                } catch (e) {
+                    alert(e.message);
+                }
+            };
+        }
+
+        init();
+    </script>
+</body>
+</html>

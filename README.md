@@ -154,6 +154,10 @@ Open `index.html` in a browser to try the editor. To use your own API key:
 2. Replace `YOUR_API_KEY` with your Google Maps API key
 3. `config.local.js` is gitignored and will not be committed
 
+## Disclaimer
+
+This project is a third-party open-source library and is not affiliated with, endorsed by, or sponsored by Google LLC. "Google Maps" is a trademark of Google LLC.
+
 ## License
 
 MIT
